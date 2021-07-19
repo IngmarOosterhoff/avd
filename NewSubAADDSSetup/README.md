@@ -2,4 +2,4 @@ The deploy.json file in this folder can be used when starting from a new or empt
 
 <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https:%2F%2Fraw.githubusercontent.com%2Fstgeorgi%2Fwvdquickstart%2Fmaster%2FNewSubAADDSSetup%2Fdeploy.json" target="_blank">
     <img src="https://aka.ms/deploytoazurebutton"/>
-</a><br>
+</a><br> 

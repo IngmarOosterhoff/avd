@@ -1,0 +1,16 @@
+{
+    "WVDSoftware": [
+        {
+            "Url": "https://aka.ms/fslogix_download",
+            "DestinationFilePath": "002-FSLogix/FSLogixApp.zip"
+        },
+        {
+            "Url": "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v7.8.7/npp.7.8.7.Installer.exe",
+            "DestinationFilePath": "003-NotepadPP/npp.7.8.7.Installer.exe"
+        },
+        {
+            "Url": "https://teams.microsoft.com/downloads/desktopurl?env=production&plat=windows&arch=x64&managedInstaller=true&download=true",
+            "DestinationFilePath": "004-Teams/Teams_windows_x64.msi"
+        }
+    ]
+}

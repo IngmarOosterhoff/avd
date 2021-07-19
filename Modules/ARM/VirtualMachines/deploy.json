@@ -1,0 +1,675 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "vmNames": {
+            "defaultValue": [],
+            "type": "Array",
+            "metadata": {
+                "description": "Optional. Name(s) of the virtual machine(s). If no explicit names are provided, VM name(s) will be generated based on the vmNamePrefix, vmNumberOfInstances and vmInitialNumber parameters."
+            }
+        },
+        "vmNamePrefix": {
+            "defaultValue": "[take(toLower(uniqueString(resourceGroup().name)),10)]",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. If no explicit values were provided in the vmNames parameter, this prefix will be used in combination with the vmNumberOfInstances and the vmInitialNumber parameters to create unique VM names. You should use a unique prefix to reduce name collisions in Active Directory. If no value is provided, a 10 character long unique string will be generated based on the Resource Group's name."
+            }
+        },
+        "vmNumberOfInstances": {
+            "defaultValue": 1,
+            "minValue": 1,
+            "maxValue": 800,
+            "type": "Int",
+            "metadata": {
+                "description": "Optional. If no explicit values were provided in the vmNames parameter, this parameter will be used to generate VM names, using the vmNamePrefix and the vmInitialNumber values."
+            }
+        },
+        "vmInitialNumber": {
+            "defaultValue": 1,
+            "type": "Int",
+            "metadata": {
+                "description": "Optional. If no explicit values were provided in the vmNames parameter, this parameter will be used to generate VM names, using the vmNamePrefix and the vmNumberOfInstances values."
+            }
+        },
+        "location": {
+            "defaultValue": "[resourceGroup().location]",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Location for all resources."
+            }
+        },
+        "vmSize": {
+            "defaultValue": "Standard_D2s_v3",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Specifies the size for the VMs"
+            }
+        },
+        "imageReference": {
+            "defaultValue": {},
+            "type": "Object",
+            "metadata": {
+                "description": "Optional. OS image reference. In case of marketplace images, it's the combination of the publisher, offer, sku, version attributes. In case of custom images it's the resource ID of the custom image."
+            }
+        },        
+        "osDisk": {
+            "type": "Object",
+            "metadata": {
+                "description": "Required. Specifies the OS disk."
+            }
+        },
+        "dataDisks": {
+            "defaultValue": [],
+            "type": "Array",
+            "metadata": {
+                "description": "Optional. Specifies the data disks."
+            }
+        },        
+        "adminUsername": {
+            "type": "SecureString",
+            "metadata": {
+                "description": "Required. Administrator username"
+            }
+        },
+        "adminPassword": {
+            "defaultValue": "",
+            "type": "SecureString",
+            "metadata": {
+                "description": "Required. When specifying a Windows Virtual Machine, this value should be passed"
+            }
+        },       
+        "availabilitySetName": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "Optional. Creates an availability set with the given name and adds the VMs to it. Cannot be used in combination with availability zone nor scale set."
+            }
+        },
+        "availabilitySetFaultDomain": {
+            "type": "int",
+            "defaultValue": 2,
+            "metadata": {
+                "description": "Optional. The number of fault domains to use."
+            }
+        },
+        "availabilitySetUpdateDomain": {
+            "type": "int",
+            "defaultValue": 5,
+            "metadata": {
+                "description": "Optional. The number of update domains to use."
+            }
+        },                        
+        "subnetId": {
+            "type": "String",
+            "metadata": {
+                "description": "Required. Full qualified subnet Id"
+            }
+        },
+        "vmIPAddress": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. IP address used as initial IP address. If left empty, the VM will use the next available IP"
+            }
+        },
+        "dnsServers": {
+            "defaultValue": [],
+            "type": "Array",
+            "metadata": {
+                "description": "Optional. IP address list of the VM specific DNS servers. Use an empty array to use DNS settings inherited from the Virtual Network"
+            }
+        },
+        "enablePublicIP": {
+            "defaultValue": false,
+            "type": "Bool",
+            "metadata": {
+                "description": "Optional. Enables the creation of a Public IP and assigns it to the Network Interface."
+            }
+        },
+        "enableIPForwarding": {
+            "defaultValue": false,
+            "type": "Bool",
+            "metadata": {
+                "description": "Optional. Indicates whether IP forwarding is enabled on this network interface."
+            }
+        },       
+        "licenseType": {
+            "defaultValue": "",
+            "allowedValues": [
+                "Windows_Client",
+                "Windows_Server",
+                ""
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Specifies that the image or disk that is being used was licensed on-premises. This element is only used for images that contain the Windows Server operating system."
+            }
+        },        
+        "windowsScriptExtensionFileData": {
+            "defaultValue": [],
+            "type": "Array",
+            "metadata": {
+                "description": "Optional. Array of objects that specifies URIs and the storageAccountId of the scripts that need to be downloaded and run by the Custom Script Extension on a Windows VM."
+            }
+        },
+        "windowsScriptExtensionCommandToExecute": {
+            "defaultValue": "",
+            "type": "SecureString",
+            "metadata": {
+                "description": "Optional. Specifies the command that should be run on a Windows VM."
+            }
+        },    
+        "domainName": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Specifies the FQDN the of the domain the VM will be joined to. Currently implemented for Windows VMs only"
+            }
+        },
+        "domainJoinUser": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Mandatory if domainName is specified. User used for the join to the domain. Format: username@domainFQDN"
+            }
+        },
+        "domainJoinOU": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Specifies an organizational unit (OU) for the domain account. Enter the full distinguished name of the OU in quotation marks. Example: \"OU=testOU; DC=domain; DC=Domain; DC=com\""
+            }
+        },
+        "domainJoinPassword": {
+            "type": "SecureString",
+            "metadata": {
+                "description": "Optional. Required if domainName is specified. Password of the user specified in domainJoinUser parameter"
+            }
+        },
+        "domainJoinRestart": {
+            "defaultValue": false,
+            "type": "Bool",
+            "metadata": {
+                "description": "Optional. Controls the restart of vm after executing domain join"
+            }
+        },
+        "domainJoinOptions": {
+            "defaultValue": 3,
+            "type": "Int",
+            "metadata": {
+                "description": "Optional. Set of bit flags that define the join options. Default value of 3 is a combination of NETSETUP_JOIN_DOMAIN (0x00000001) & NETSETUP_ACCT_CREATE (0x00000002) i.e. will join the domain and create the account on the domain. For more information see https://msdn.microsoft.com/en-us/library/aa392154(v=vs.85).aspx"
+            }
+        },
+        "dscConfiguration": {
+            "defaultValue": {},
+            "type": "Object",
+            "metadata": {
+                "description": "Optional. The DSC configuration object"
+            }
+        },        
+        "bootDiagnosticStorageAccountName": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Storage account used to store boot diagnostic information."
+            }
+        },
+        "diagnosticLogsRetentionInDays": {
+            "defaultValue": 365,
+            "minValue": 0,
+            "maxValue": 365,
+            "type": "Int",
+            "metadata": {
+                "description": "Optional. Specifies the number of days that logs will be kept for; a value of 0 will retain data indefinitely."
+            }
+        },
+        "diagnosticStorageAccountId": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Resource identifier of the Diagnostic Storage Account."
+            }
+        },
+        "workspaceId": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Resource identifier of Log Analytics."
+            }
+        },
+        "eventHubAuthorizationRuleId": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Resource ID of the event hub authorization rule for the Event Hubs namespace in which the event hub should be created or streamed to."
+            }
+        },
+        "eventHubName": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Name of the event hub within the namespace to which logs are streamed. Without this, an event hub is created for each log category."
+            }
+        },
+        "lockForDeletion": {
+            "defaultValue": false,
+            "type": "Bool",
+            "metadata": {
+                "description": "Optional. Switch to lock VM from deletion."
+            }
+        },
+        "tags": {
+            "defaultValue": {},
+            "type": "Object",
+            "metadata": {
+                "description": "Optional. Tags of the resource."
+            }
+        },
+        "cuaId": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. Customer Usage Attribution id (GUID). This GUID must be previously registered"
+            }
+        },
+        "baseTime": {
+            "defaultValue": "[utcNow('u')]",
+            "type": "String",
+            "metadata": {
+                "description": "Generated. Do not provide a value! This date value is used to generate a registration token."
+            }
+        },
+        "sasTokenValidityLength": {
+            "defaultValue": "PT8H",
+            "type": "String",
+            "metadata": {
+                "description": "Optional. SAS token validity length to use to download files from storage accounts. Usage: 'PT8H' - valid for 8 hours; 'P5D' - valid for 5 days; 'P1Y' - valid for 1 year. When not provided, the SAS token will be valid for 8 hours."
+            }
+        }
+    },
+    "variables": {
+        "dnsServersValues": {
+            "dnsServers": "[parameters('dnsServers')]"
+        },       
+        "diagnosticsMetrics": [
+            {
+                "category": "AllMetrics",
+                "timeGrain": null,
+                "enabled": true,
+                "retentionPolicy": {
+                    "enabled": true,
+                    "days": "[parameters('diagnosticLogsRetentionInDays')]"
+                }
+            }
+        ],
+        "pipDiagnosticsLogs": [
+            {
+                "category": "DDoSProtectionNotifications",
+                "enabled": true,
+                "retentionPolicy": {
+                    "enabled": true,
+                    "days": "[parameters('diagnosticLogsRetentionInDays')]"
+                }
+            },
+            {
+                "category": "DDoSMitigationFlowLogs",
+                "enabled": true,
+                "retentionPolicy": {
+                    "enabled": true,
+                    "days": "[parameters('diagnosticLogsRetentionInDays')]"
+                }
+            },
+            {
+                "category": "DDoSMitigationReports",
+                "enabled": true,
+                "retentionPolicy": {
+                    "enabled": true,
+                    "days": "[parameters('diagnosticLogsRetentionInDays')]"
+                }
+            }
+        ],
+        "pidName": "[concat('pid-', parameters('cuaId'))]",
+        "bootDiagnosticStorageAccountName": "[if(empty(parameters('bootDiagnosticStorageAccountName')), split(parameters('diagnosticStorageAccountId'), '/')[sub(length(split(parameters('diagnosticStorageAccountId'), '/')), 1)], parameters('bootDiagnosticStorageAccountName'))]",
+        "copy": [
+            {
+                "name": "vmGeneratedNames",
+                "count": "[parameters('vmNumberOfInstances')]",
+                "input": "[concat(parameters('vmNamePrefix'), padLeft( copyIndex('vmGeneratedNames', parameters('vmInitialNumber') ),3,'0' ) )]"
+            }
+        ],
+        "vmNames": "[if( empty( parameters('vmNames') ), variables('vmGeneratedNames'), parameters('vmNames') )]",
+        "accountSasProperties": {
+            "signedServices": "b",
+            "signedPermission": "r",
+            "signedExpiry": "[dateTimeAdd(parameters('baseTime'), parameters('sasTokenValidityLength'))]",
+            "signedResourceTypes": "o",
+            "signedProtocol": "https"
+        }
+    },
+    "functions": [
+        {
+            "namespace": "vdc",
+            "members": {
+                "nextIP": {
+                    "parameters": [
+                        {
+                            "name": "ip",
+                            "type": "String"
+                        },
+                        {
+                            "name": "operand",
+                            "type": "Int"
+                        }
+                    ],
+                    "output": {
+                        "type": "String",
+                        "value": "[concat(split(parameters('ip'), '.')[0], '.' ,split(parameters('ip'), '.')[1], '.' ,split(parameters('ip'), '.')[2], '.', add(int(split(parameters('ip'), '.')[3]), parameters('operand')))]"
+                    }
+                }
+            }
+        }
+    ],
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-02-01",
+            "name": "[variables('pidName')]",
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "resources": []
+                }
+            },
+            "condition": "[not(empty(parameters('cuaId')))]"
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2019-09-01",
+            "name": "[concat(variables('vmNames')[copyIndex()], '-pip-01')]",
+            "location": "[parameters('location')]",
+            "tags": "[parameters('tags')]",
+            "sku": {
+                "name": "Standard"
+            },           
+            "properties": {
+                "publicIPAllocationMethod": "Static"
+            },
+            "resources": [
+                {
+                    "type": "providers/locks",
+                    "apiVersion": "2016-09-01",
+                    "name": "Microsoft.Authorization/publicIpDoNotDelete",
+                    "dependsOn": [
+                        "[concat('Microsoft.Network/publicIPAddresses/', variables('vmNames')[copyIndex()], '-pip-01')]"
+                    ],
+                    "properties": {
+                        "level": "CannotDelete"
+                    },
+                    "condition": "[parameters('lockForDeletion')]"
+                },
+                {
+                    "type": "Microsoft.Network/publicIPAddresses/providers/diagnosticSettings",
+                    "apiVersion": "2017-05-01-preview",
+                    "name": "[concat(variables('vmNames')[copyIndex()], '-pip-01', '/Microsoft.Insights/service')]",
+                    "location": "[parameters('location')]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Network/publicIPAddresses/', variables('vmNames')[copyIndex()], '-pip-01')]"
+                    ],
+                    "tags": "[parameters('tags')]",
+                    "properties": {
+                        "storageAccountId": "[if(empty(parameters('diagnosticStorageAccountId')), json('null'), parameters('diagnosticStorageAccountId'))]",
+                        "workspaceId": "[if(empty(parameters('workspaceId')), json('null'), parameters('workspaceId'))]",
+                        "eventHubAuthorizationRuleId": "[if(empty(parameters('eventHubAuthorizationRuleId')), json('null'), parameters('eventHubAuthorizationRuleId'))]",
+                        "eventHubName": "[if(empty(parameters('eventHubName')), json('null'), parameters('eventHubName'))]",
+                        "metrics": "[if(and(empty(parameters('diagnosticStorageAccountId')), empty(parameters('workspaceId')), empty(parameters('eventHubAuthorizationRuleId')), empty(parameters('eventHubName'))), json('null'), variables('diagnosticsMetrics'))]",
+                        "logs": "[if(and(empty(parameters('diagnosticStorageAccountId')), empty(parameters('workspaceId')), empty(parameters('eventHubAuthorizationRuleId')), empty(parameters('eventHubName'))), json('null'), variables('pipDiagnosticsLogs'))]"
+                    },
+                    "condition": "[and(parameters('enablePublicIP'), or(not(empty(parameters('diagnosticStorageAccountId'))),not(empty(parameters('workspaceId'))),not(empty(parameters('eventHubAuthorizationRuleId'))),not(empty(parameters('eventHubName')))))]"
+                }
+            ],
+            "copy": {
+                "name": "pipLoop",
+                "count": "[length(variables('vmNames'))]"
+            },
+            "condition": "[parameters('enablePublicIP')]"
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2019-09-01",
+            "name": "[concat(variables('vmNames')[copyIndex()], '-nic-int-01')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "pipLoop"
+            ],
+            "tags": "[parameters('tags')]",
+            "properties": {
+                "enableIPForwarding": "[parameters('enableIPForwarding')]",            
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "[if(empty(parameters('vmIPAddress')), 'Dynamic', 'Static')]",
+                            "publicIPAddress": "[if(not(parameters('enablePublicIP')), json('null'), json(concat('{\"id\":\"', resourceId('Microsoft.Network/publicIPAddresses', concat(variables('vmNames')[copyIndex()], '-pip-01')),'\"}')))]",
+                            "privateIPAddress": "[if(empty(parameters('vmIPAddress')), json('null'), vdc.nextIP(parameters('vmIPAddress'), copyIndex()))]",
+                            "subnet": {
+                                "id": "[parameters('subnetId')]"
+                            }                           
+                        }
+                    }
+                ],
+                "dnsSettings": "[if(equals(length(parameters('dnsServers')),0), json('null'), variables('dnsServersValues'))]"
+            },
+            "resources": [
+                {
+                    "type": "providers/locks",
+                    "apiVersion": "2016-09-01",
+                    "name": "Microsoft.Authorization/networkInterfaceDoNotDelete",
+                    "dependsOn": [
+                        "[concat('Microsoft.Network/networkInterfaces/', variables('vmNames')[copyIndex()], '-nic-int-01')]"
+                    ],
+                    "properties": {
+                        "level": "CannotDelete"
+                    },
+                    "condition": "[parameters('lockForDeletion')]"
+                },
+                {
+                    "type": "Microsoft.Network/networkInterfaces/providers/diagnosticSettings",
+                    "apiVersion": "2017-05-01-preview",
+                    "name": "[concat(variables('vmNames')[copyIndex()], '-nic-int-01', '/Microsoft.Insights/service')]",
+                    "location": "[parameters('location')]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Network/networkInterfaces/', variables('vmNames')[copyIndex()], '-nic-int-01')]"
+                    ],
+                    "tags": "[parameters('tags')]",
+                    "properties": {
+                        "storageAccountId": "[if(empty(parameters('diagnosticStorageAccountId')), json('null'), parameters('diagnosticStorageAccountId'))]",
+                        "workspaceId": "[if(empty(parameters('workspaceId')), json('null'), parameters('workspaceId'))]",
+                        "eventHubAuthorizationRuleId": "[if(empty(parameters('eventHubAuthorizationRuleId')), json('null'), parameters('eventHubAuthorizationRuleId'))]",
+                        "eventHubName": "[if(empty(parameters('eventHubName')), json('null'), parameters('eventHubName'))]",
+                        "metrics": "[if(and(empty(parameters('diagnosticStorageAccountId')), empty(parameters('workspaceId')), empty(parameters('eventHubAuthorizationRuleId')), empty(parameters('eventHubName'))), json('null'), variables('diagnosticsMetrics'))]"
+                    },
+                    "condition": "[or(not(empty(parameters('diagnosticStorageAccountId'))),not(empty(parameters('workspaceId'))),not(empty(parameters('eventHubAuthorizationRuleId'))),not(empty(parameters('eventHubName'))))]"
+                }
+            ],
+            "copy": {
+                "name": "nicLoop",
+                "count": "[length(variables('vmNames'))]"
+            }
+        },
+       
+             
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2019-07-01",
+            "name": "[variables('vmNames')[copyIndex()]]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "nicLoop"         
+            ],
+            "tags": "[parameters('tags')]",           
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": "[parameters('imageReference')]",
+                    "osDisk": {
+                        "createOption": "FromImage",
+                        "diskSizeGB": 128,
+                        "managedDisk": {
+                            "storageAccountType": "Premium_LRS"
+                        }
+                    },
+                    "dataDisks": [
+                        {
+                            "diskSizeGB": 1023,
+                            "lun": 0,
+                            "createOption": "Empty"
+                        }
+                    ]
+                },                
+                "osProfile": {
+                    "computerName": "[variables('vmNames')[copyIndex()]]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"                                                           
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('vmNames')[copyIndex()], '-nic-int-01'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "[false()]"                    
+                    }
+                },                                                           
+                "licenseType": "[if(empty(parameters('licenseType')), json('null'),parameters('licenseType'))]"
+            },
+            "resources": [
+                {
+                    "type": "providers/locks",
+                    "apiVersion": "2016-09-01",
+                    "name": "Microsoft.Authorization/vmDoNotDelete",
+                    "dependsOn": [
+                        "[concat('Microsoft.Compute/virtualMachines/', variables('vmNames')[copyIndex()])]"
+                    ],
+                    "properties": {
+                        "level": "CannotDelete"
+                    },
+                    "condition": "[parameters('lockForDeletion')]"
+                },
+                {
+                    "type": "Microsoft.Compute/virtualMachines/extensions",
+                    "apiVersion": "2019-07-01",
+                    "name": "[concat(variables('vmNames')[copyIndex()],'/DomainJoin')]",
+                    "location": "[parameters('location')]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Compute/virtualMachines/', variables('vmNames')[copyIndex()])]"
+                    ],
+                    "properties": {
+                        "publisher": "Microsoft.Compute",
+                        "type": "JsonADDomainExtension",
+                        "typeHandlerVersion": "1.3",
+                        "autoUpgradeMinorVersion": true,
+                        "settings": {
+                            "Name": "[parameters('domainName')]",
+                            "User": "[parameters('domainJoinUser')]",
+                            "OUPath": "[parameters('domainJoinOU')]",
+                            "Restart": "[parameters('domainJoinRestart')]",
+                            "Options": "[parameters('domainJoinOptions')]"
+                        },
+                        "protectedSettings": {
+                            "Password": "[parameters('domainJoinPassword')]"
+                        }
+                    },
+                    "condition": "[not(empty(parameters('domainName')))]"
+                },                                                                                                        
+                {
+                    "type": "Microsoft.Compute/virtualMachines/extensions",
+                    "apiVersion": "2018-10-01",
+                    "name": "[concat(variables('vmNames')[copyIndex()], '/windowsDsc')]",
+                    "location": "[parameters('location')]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Compute/virtualMachines/', variables('vmNames')[copyIndex()])]"                        
+                    ],
+                    "properties": {
+                        "publisher": "Microsoft.Powershell",
+                        "type": "DSC",
+                        "typeHandlerVersion": "2.77",
+                        "autoUpgradeMinorVersion": true,
+                        "settings": "[parameters('dscConfiguration').settings]",
+                        "protectedSettings": "[if( contains(parameters('dscConfiguration'), 'protectedSettings'), parameters('dscConfiguration').protectedSettings, json('null') )]"
+                    },
+                    "condition": "[not(empty(parameters('dscConfiguration')))]"
+                }
+            ],
+            "copy": {
+                "name": "vmLoop",
+                "count": "[length(variables('vmNames'))]"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "apiVersion": "2019-07-01",
+            "name": "[concat(variables('vmNames')[copyIndex()], '/WindowsCustomScriptExtension')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmNames')[copyIndex()])]"          
+            ],
+            "properties": {
+                "publisher": "Microsoft.Compute",
+                "type": "CustomScriptExtension",
+                "typeHandlerVersion": "1.9",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "copy": [
+                        {
+                            "name": "fileUris",
+                            "count": "[length(parameters('windowsScriptExtensionFileData'))]",
+                            "input": "[concat(parameters('windowsScriptExtensionFileData')[copyIndex('fileUris')].uri, if( not(empty(parameters('windowsScriptExtensionFileData')[copyIndex('fileUris')].storageAccountId)), concat('?',listAccountSas(parameters('windowsScriptExtensionFileData')[copyIndex('fileUris')].storageAccountId, '2019-04-01', variables('accountSasProperties')).accountSasToken) , '' ))]"
+                        }
+                    ]
+                },
+                "protectedSettings": {
+                    "commandToExecute": "[parameters('windowsScriptExtensionCommandToExecute')]"
+                }
+            },
+            "copy": {
+                "name": "windowsCustomScriptExtensionLoop",
+                "count": "[length(variables('vmNames'))]"
+            },
+            "condition": "[and(not(empty(parameters('windowsScriptExtensionFileData'))),not(empty(parameters('windowsScriptExtensionCommandToExecute'))))]"
+        }        
+    ],
+    "outputs": {
+        "vmResourceIds": {
+            "copy": {
+                "count": "[length(variables('vmNames'))]",
+                "input": "[resourceId('Microsoft.Compute/virtualMachines', variables('vmNames')[copyIndex()])]"
+            },
+            "type": "Array",
+            "metadata": {
+                "description": "The Resource Id(s) of the VM(s)."
+            }
+        },
+        "vmResourceGroup": {
+            "type": "String",
+            "value": "[resourceGroup().name]",
+            "metadata": {
+                "description": "The name of the Resource Group the VM(s) was/were created in."
+            }
+        },
+        "vmNames": {
+            "type": "Array",
+            "value": "[variables('vmNames')]",
+            "metadata": {
+                "description": "The Names of the VMs."
+            }
+        }
+    }
+}
